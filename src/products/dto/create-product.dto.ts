@@ -25,7 +25,7 @@ export class CreateProductDto {
 
   @IsString()
   @IsOptional()
-  slug?: number;
+  slug?: string;
 
   @IsInt()
   @IsPositive()
