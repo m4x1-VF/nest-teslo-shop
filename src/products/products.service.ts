@@ -58,25 +58,22 @@ export class ProductsService {
 
   async findOne(term: string) {
     let product: Product | null;
-    try {
-      if (isUUID(term)) {
-        product = await this.productRepository.findOneBy({ id: term });
-      } else {
-        const queryBuilder = this.productRepository.createQueryBuilder('prod');
-        product = await queryBuilder
-          .where('UPPER(title)=:title OR slug=:slug', {
-            title: term.toUpperCase(),
-            slug: term.toLowerCase(),
-          })
-          .leftJoinAndSelect('prod.images', 'prodImages')
-          .getOne();
-      }
-      if (!product)
-        throw new NotFoundException(`Product with id ${term} not found`);
-      return product;
-    } catch (error) {
-      this.handleDBExceptions(error);
+
+    if (isUUID(term)) {
+      product = await this.productRepository.findOneBy({ id: term });
+    } else {
+      const queryBuilder = this.productRepository.createQueryBuilder('prod');
+      product = await queryBuilder
+        .where('UPPER(title)=:title OR slug=:slug', {
+          title: term.toUpperCase(),
+          slug: term.toLowerCase(),
+        })
+        .leftJoinAndSelect('prod.images', 'prodImages')
+        .getOne();
     }
+    if (!product)
+      throw new NotFoundException(`Product with id ${term} not found`);
+    return product;
   }
 
   async findOnePlain(term: string) {
@@ -136,11 +133,19 @@ export class ProductsService {
 
   private handleDBExceptions(error: any) {
     if (error.code === '23505') throw new BadRequestException(error.detail);
-    if (error.response.statusCode === 404)
-      throw new NotFoundException(error.response.message);
+    if (error.status === 404) throw new NotFoundException();
     this.logger.error(error);
     throw new InternalServerErrorException(
       'Unexpected error, check server logs',
     );
+  }
+
+  async deleteAllProducts() {
+    const query = this.productRepository.createQueryBuilder('product');
+    try {
+      return await query.delete().where({}).execute();
+    } catch (error) {
+      this.handleDBExceptions(error);
+    }
   }
 }
