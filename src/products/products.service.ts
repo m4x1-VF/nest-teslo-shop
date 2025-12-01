@@ -42,10 +42,16 @@ export class ProductsService {
 
   async findAll(paginationDto: PaginationDto) {
     const { limit = 10, offset = 0 } = paginationDto;
-    return await this.productRepository.find({
+
+    const products = await this.productRepository.find({
       take: limit,
       skip: offset,
+      relations: { images: true },
     });
+    return products.map((product) => ({
+      ...product,
+      images: product.images?.map((img) => img.url),
+    }));
   }
 
   async findOne(term: string) {
@@ -54,12 +60,13 @@ export class ProductsService {
       if (isUUID(term)) {
         product = await this.productRepository.findOneBy({ id: term });
       } else {
-        const queryBuilder = this.productRepository.createQueryBuilder();
+        const queryBuilder = this.productRepository.createQueryBuilder('prod');
         product = await queryBuilder
           .where('UPPER(title)=:title OR slug=:slug', {
             title: term.toUpperCase(),
             slug: term.toLowerCase(),
           })
+          .leftJoinAndSelect('prod.images', 'prodImages')
           .getOne();
       }
       if (!product)
@@ -70,10 +77,21 @@ export class ProductsService {
     }
   }
 
+  async findOnePlain(term: string) {
+    const product = await this.findOne(term);
+    if (!product) throw new NotFoundException(`Product "${term}" not found`);
+
+    return {
+      ...product,
+      images: product.images?.map((img) => img.url),
+    };
+  }
+
   async update(id: string, updateProductDto: UpdateProductDto) {
+    const { images, ...rest } = updateProductDto;
     const product = await this.productRepository.preload({
       id: id,
-      ...updateProductDto,
+      ...rest,
       images: [],
     });
 
@@ -81,6 +99,11 @@ export class ProductsService {
       throw new NotFoundException(`Product with id ${id} not found`);
 
     try {
+      if (images && images.length > 0) {
+        product.images = images.map((img) =>
+          this.productImageRepository.create({ url: img }),
+        );
+      }
       await this.productRepository.save(product);
       return product;
     } catch (error) {
