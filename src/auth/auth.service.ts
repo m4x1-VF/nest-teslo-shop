@@ -53,6 +53,17 @@ export class AuthService {
     return { ...user, token: this.getJwtToken({ id: user.id }) };
   }
 
+  async checkAuthStatus(user: User) {
+    const { email } = user;
+    const userStatus = await this.userRepository.findOne({
+      where: { email },
+      select: { email: true, password: true, id: true, fullName: true },
+    });
+    if (!userStatus)
+      throw new UnauthorizedException('Creadentials are not valid');
+    return { ...userStatus, token: this.getJwtToken({ id: userStatus.id }) };
+  }
+
   private getJwtToken(payload: JwtPayload) {
     const token = this.jwtService.sign(payload);
     return token;
